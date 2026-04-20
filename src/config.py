@@ -31,6 +31,13 @@ class AppConfig:
     depth_low_palm_size: Optional[float] = None
     depth_high_palm_size: Optional[float] = None
     depth_maintain_width: float = 0.33
+    rotation_feature_enabled: bool = False
+    rotation_sensitivity: float = 1000.0
+    rotation_deadzone: float = 0.20
+    rotation_invert_x: bool = False
+    rotation_invert_y: bool = False
+    rotation_neutral_x: float = 0.0
+    rotation_neutral_y: float = 0.0
 
     def thresholds_for(self, hand_mode: str) -> dict[str, float]:
         return (
@@ -81,6 +88,27 @@ def load_config(path: Path = CONFIG_PATH) -> AppConfig:
         cfg.depth_high_palm_size = float(hi) if hi is not None else None
         cfg.depth_maintain_width = float(
             raw.get("depth_maintain_width", cfg.depth_maintain_width)
+        )
+        cfg.rotation_feature_enabled = bool(
+            raw.get("rotation_feature_enabled", cfg.rotation_feature_enabled)
+        )
+        cfg.rotation_sensitivity = float(
+            raw.get("rotation_sensitivity", cfg.rotation_sensitivity)
+        )
+        cfg.rotation_deadzone = float(
+            raw.get("rotation_deadzone", cfg.rotation_deadzone)
+        )
+        cfg.rotation_invert_x = bool(
+            raw.get("rotation_invert_x", cfg.rotation_invert_x)
+        )
+        cfg.rotation_invert_y = bool(
+            raw.get("rotation_invert_y", cfg.rotation_invert_y)
+        )
+        cfg.rotation_neutral_x = float(
+            raw.get("rotation_neutral_x", cfg.rotation_neutral_x)
+        )
+        cfg.rotation_neutral_y = float(
+            raw.get("rotation_neutral_y", cfg.rotation_neutral_y)
         )
         return cfg
     except (json.JSONDecodeError, ValueError, TypeError):

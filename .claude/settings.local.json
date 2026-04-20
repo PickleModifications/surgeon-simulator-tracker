@@ -29,7 +29,9 @@
       "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.mouse_controller import MouseController, palm_center; from src.config import load_config; print\\('ok'\\)\")",
       "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import DescentController, compute_palm_size; print\\('ok'\\)\")",
       "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import compute_palm_size; import numpy as np; lms = np.random.rand\\(21, 3\\).astype\\(np.float32\\); print\\('size:', compute_palm_size\\(lms\\)\\)\")",
-      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import DescentController; d=DescentController\\(low_palm_size=1.0, high_palm_size=2.0, maintain_width=0.33\\); print\\('duty @ low=', d.compute_duty\\(1.0\\), '@ mid=', d.compute_duty\\(1.5\\), '@ high=', d.compute_duty\\(2.0\\)\\); print\\('maintain bounds:', d.maintain_bounds\\(\\)\\)\")"
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import DescentController; d=DescentController\\(low_palm_size=1.0, high_palm_size=2.0, maintain_width=0.33\\); print\\('duty @ low=', d.compute_duty\\(1.0\\), '@ mid=', d.compute_duty\\(1.5\\), '@ high=', d.compute_duty\\(2.0\\)\\); print\\('maintain bounds:', d.maintain_bounds\\(\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.rotation_controller import RotationController, palm_normal_world; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.rotation_controller import RotationController; print\\('ok'\\)\")"
     ]
   }
 }

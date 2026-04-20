@@ -44,6 +44,7 @@ from src.depth_controller import (
 from src.hand_tracker import HandResult, HandTracker
 from src.key_sender import KeySender
 from src.mouse_controller import MouseController, palm_center
+from src.rotation_controller import RotationController, palm_normal_world
 from src.ui.finger_panel import FingerPanel
 from src.ui.video_widget import VideoWidget
 
@@ -100,6 +101,16 @@ class MainWindow(QMainWindow):
             high_palm_size=self._config.depth_high_palm_size,
             maintain_width=self._config.depth_maintain_width,
         )
+
+        self._rotation = RotationController(
+            sensitivity=self._config.rotation_sensitivity,
+            deadzone=self._config.rotation_deadzone,
+            invert_x=self._config.rotation_invert_x,
+            invert_y=self._config.rotation_invert_y,
+            neutral_x=self._config.rotation_neutral_x,
+            neutral_y=self._config.rotation_neutral_y,
+        )
+        self._latest_palm_normal: Optional[np.ndarray] = None
 
         self._depth_cal_samples: list[float] = []
         self._depth_cal_low: Optional[float] = None
@@ -176,6 +187,11 @@ class MainWindow(QMainWindow):
         self._toggle_btn.clicked.connect(self._toggle_enabled)
         row2.addWidget(self._toggle_btn)
 
+        self._rotation_only_btn = QPushButton("Rotation Only")
+        self._rotation_only_btn.setCheckable(True)
+        self._rotation_only_btn.clicked.connect(self._toggle_rotation_only)
+        row2.addWidget(self._rotation_only_btn)
+
         self._calibrate_btn = QPushButton("Calibrate Fingers")
         self._calibrate_btn.clicked.connect(self._start_calibration)
         row2.addWidget(self._calibrate_btn)
@@ -187,6 +203,10 @@ class MainWindow(QMainWindow):
         self._calibrate_depth_btn = QPushButton("Calibrate Depth")
         self._calibrate_depth_btn.clicked.connect(self._start_depth_calibration)
         row2.addWidget(self._calibrate_depth_btn)
+
+        self._calibrate_rot_btn = QPushButton("Calibrate Rotation")
+        self._calibrate_rot_btn.clicked.connect(self._calibrate_rotation)
+        row2.addWidget(self._calibrate_rot_btn)
 
 
         self._status_label = QLabel("Disabled — keystrokes not sent.")
@@ -283,6 +303,46 @@ class MainWindow(QMainWindow):
         descent_row.addLayout(mw_col, 1)
         outer.addLayout(descent_row)
 
+        # Rotation mode (right-click): palm tilt away from flat.
+        rot_row = QHBoxLayout()
+        self._rot_feature_cb = QCheckBox("Enable rotation")
+        self._rot_feature_cb.toggled.connect(self._on_rotation_feature_toggled)
+        rot_row.addWidget(self._rot_feature_cb)
+
+        rsens_col = QVBoxLayout()
+        rsens_col.addWidget(QLabel("Sensitivity (px/sec)"))
+        self._rsens_slider = QSlider(Qt.Orientation.Horizontal)
+        self._rsens_slider.setRange(100, 4000)
+        self._rsens_slider.valueChanged.connect(self._on_rsens_changed)
+        self._rsens_label = QLabel("—")
+        self._rsens_label.setStyleSheet("color: #888; font-family: monospace;")
+        rsens_col.addWidget(self._rsens_slider)
+        rsens_col.addWidget(self._rsens_label)
+        rot_row.addLayout(rsens_col, 2)
+
+        rdz_col = QVBoxLayout()
+        rdz_col.addWidget(QLabel("Tilt deadzone"))
+        self._rdz_slider = QSlider(Qt.Orientation.Horizontal)
+        self._rdz_slider.setRange(0, 900)  # 0.00 .. 0.90
+        self._rdz_slider.valueChanged.connect(self._on_rdz_changed)
+        self._rdz_label = QLabel("—")
+        self._rdz_label.setStyleSheet("color: #888; font-family: monospace;")
+        rdz_col.addWidget(self._rdz_slider)
+        rdz_col.addWidget(self._rdz_label)
+        rot_row.addLayout(rdz_col, 1)
+
+        rinvert_col = QVBoxLayout()
+        rinvert_col.addWidget(QLabel("Invert"))
+        self._rinvert_x_cb = QCheckBox("X")
+        self._rinvert_y_cb = QCheckBox("Y")
+        self._rinvert_x_cb.toggled.connect(self._on_rinvert_x_changed)
+        self._rinvert_y_cb.toggled.connect(self._on_rinvert_y_changed)
+        rinvert_col.addWidget(self._rinvert_x_cb)
+        rinvert_col.addWidget(self._rinvert_y_cb)
+        rot_row.addLayout(rinvert_col, 0)
+
+        outer.addLayout(rot_row)
+
 
     def _apply_config_to_ui(self) -> None:
         # Camera
@@ -322,6 +382,23 @@ class MainWindow(QMainWindow):
         self._mw_slider.setValue(int(round(self._config.depth_maintain_width * 1000)))
         self._mw_slider.blockSignals(False)
         self._mw_label.setText(f"{self._config.depth_maintain_width:.2f}")
+        self._rsens_slider.blockSignals(True)
+        self._rsens_slider.setValue(int(round(self._config.rotation_sensitivity)))
+        self._rsens_slider.blockSignals(False)
+        self._rsens_label.setText(f"{int(self._config.rotation_sensitivity)}")
+        self._rdz_slider.blockSignals(True)
+        self._rdz_slider.setValue(int(round(self._config.rotation_deadzone * 1000)))
+        self._rdz_slider.blockSignals(False)
+        self._rdz_label.setText(f"{self._config.rotation_deadzone:.2f}")
+        self._rot_feature_cb.blockSignals(True)
+        self._rot_feature_cb.setChecked(self._config.rotation_feature_enabled)
+        self._rot_feature_cb.blockSignals(False)
+        self._rinvert_x_cb.blockSignals(True)
+        self._rinvert_x_cb.setChecked(self._config.rotation_invert_x)
+        self._rinvert_x_cb.blockSignals(False)
+        self._rinvert_y_cb.blockSignals(True)
+        self._rinvert_y_cb.setChecked(self._config.rotation_invert_y)
+        self._rinvert_y_cb.blockSignals(False)
 
     def _refresh_sliders_from_config(self) -> None:
         thresholds = self._config.thresholds_for(self._config.hand_mode)
@@ -384,9 +461,11 @@ class MainWindow(QMainWindow):
 
         palm: Optional[np.ndarray] = None
         palm_size: Optional[float] = None
+        palm_normal: Optional[np.ndarray] = None
         if result is not None:
             palm = palm_center(result.landmarks)
             palm_size = compute_palm_size(result.landmarks, result.world_landmarks)
+            palm_normal = palm_normal_world(result.world_landmarks)
             self._tracker.draw(bgr, result)
             if self._calibration_mode is None:
                 states = self._gesture.update(result.landmarks)
@@ -402,6 +481,7 @@ class MainWindow(QMainWindow):
 
         self._latest_palm = palm
         self._latest_palm_size = palm_size
+        self._latest_palm_normal = palm_normal
 
         if self._calibration_mode in ("depth_low", "depth_high") and palm_size is not None:
             self._depth_cal_samples.append(palm_size)
@@ -415,7 +495,10 @@ class MainWindow(QMainWindow):
         self._last_mouse_tick = now
         if self._calibration_mode is not None:
             return
-        self._mouse.update(self._latest_palm, dt)
+        # Rotation mode takes precedence and suppresses translation while tilted.
+        rotating = self._rotation.update(self._latest_palm_normal, dt)
+        if not rotating:
+            self._mouse.update(self._latest_palm, dt)
         self._descent.update(self._latest_palm_size, now)
 
     def _draw_mouse_overlay(self, bgr: np.ndarray, palm: Optional[np.ndarray]) -> None:
@@ -480,6 +563,37 @@ class MainWindow(QMainWindow):
         cv2.putText(bgr, f"state: {state.upper()}", (w - 230, 22),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, colors[state], 2)
 
+        # Rotation-mode HUD: small "joystick" in the top-left showing the
+        # tilt vector (current palm normal minus calibrated neutral), the
+        # deadzone ring, and a live state indicator that works whether or
+        # not F9 is engaged. Skipped entirely when the feature is disabled.
+        if not self._config.rotation_feature_enabled:
+            return
+        jx, jy, jr = 60, 80, 32
+        cv2.circle(bgr, (jx, jy), jr, (120, 120, 120), 1)
+        dz_r = int(self._rotation.deadzone * jr)
+        if dz_r > 1:
+            cv2.circle(bgr, (jx, jy), dz_r, (80, 80, 80), 1)
+        tx, ty = self._rotation.last_tilt_vec
+        if self._latest_palm_normal is not None:
+            tip_x = jx + int(tx * jr)
+            tip_y = jy + int(ty * jr)
+            if self._rotation.is_actuating:
+                color = (120, 120, 230)   # red-ish: actively sending
+            elif self._rotation.past_deadzone:
+                color = (80, 180, 255)    # orange: would activate if F9 on
+            else:
+                color = (200, 200, 200)
+            cv2.arrowedLine(bgr, (jx, jy), (tip_x, tip_y), color, 2, tipLength=0.3)
+        if self._rotation.is_actuating:
+            rot_label, rot_color = "ROTATING", (120, 120, 230)
+        elif self._rotation.past_deadzone:
+            rot_label, rot_color = "ready (F9 off)", (80, 180, 255)
+        else:
+            rot_label, rot_color = "rotate: neutral", (150, 150, 150)
+        cv2.putText(bgr, rot_label, (jx + jr + 8, jy + 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, rot_color, 1)
+
     # --------------------------------------------------------- hand mode
 
     def _on_hand_mode_changed(self) -> None:
@@ -505,12 +619,18 @@ class MainWindow(QMainWindow):
 
     def _toggle_enabled(self) -> None:
         new_state = not self._key_sender.enabled
+        # Main toggle and "Rotation Only" are mutually exclusive.
+        if new_state and self._rotation_only_btn.isChecked():
+            self._rotation_only_btn.setChecked(False)
         self._key_sender.set_enabled(new_state)
         self._mouse.enabled = new_state
         if new_state:
             self._descent.enabled = True
+            if self._config.rotation_feature_enabled:
+                self._rotation.enabled = True
         else:
             self._descent.disable()
+            self._rotation.disable()
         self._toggle_btn.setChecked(new_state)
         if new_state:
             self._toggle_btn.setText("Stop (F9)")
@@ -520,6 +640,48 @@ class MainWindow(QMainWindow):
             self._toggle_btn.setText("Start (F9)")
             self._status_label.setText("Disabled — keystrokes not sent.")
             self._status_label.setStyleSheet("color: #bbb;")
+
+    def _toggle_rotation_only(self) -> None:
+        checked = self._rotation_only_btn.isChecked()
+        if checked:
+            if not self._config.rotation_feature_enabled:
+                # Feature is disabled: don't engage, just revert the button.
+                self._rotation_only_btn.setChecked(False)
+                QMessageBox.information(
+                    self, "Rotation disabled",
+                    "Tick 'Enable rotation' first.",
+                )
+                return
+            # Tear down the main enable path and its labels.
+            if self._key_sender.enabled:
+                self._key_sender.set_enabled(False)
+            self._mouse.enabled = False
+            self._descent.disable()
+            self._toggle_btn.setChecked(False)
+            self._toggle_btn.setText("Start (F9)")
+            # Enable just rotation.
+            self._rotation.enabled = True
+            self._status_label.setText("Rotation-only debug mode — keys/mouse/descent off.")
+            self._status_label.setStyleSheet("color: #80b4ff;")
+        else:
+            self._rotation.disable()
+            self._status_label.setText("Disabled — keystrokes not sent.")
+            self._status_label.setStyleSheet("color: #bbb;")
+
+    def _on_rotation_feature_toggled(self, checked: bool) -> None:
+        self._config.rotation_feature_enabled = checked
+        if not checked:
+            # Disable rotation immediately, whatever state it's in.
+            self._rotation.disable()
+            if self._rotation_only_btn.isChecked():
+                self._rotation_only_btn.setChecked(False)
+                self._status_label.setText("Disabled — keystrokes not sent.")
+                self._status_label.setStyleSheet("color: #bbb;")
+        else:
+            # If main toggle is already on, engage rotation now.
+            if self._key_sender.enabled:
+                self._rotation.enabled = True
+        self._schedule_save()
 
     # -------------------------------------------------------- mouse
 
@@ -566,6 +728,45 @@ class MainWindow(QMainWindow):
         self._config.depth_maintain_width = w
         self._mw_label.setText(f"{w:.2f}")
         self._schedule_save()
+
+    # -------------------------------------------------------- rotation
+
+    def _on_rsens_changed(self, value: int) -> None:
+        self._rotation.sensitivity = float(value)
+        self._config.rotation_sensitivity = float(value)
+        self._rsens_label.setText(f"{value}")
+        self._schedule_save()
+
+    def _on_rdz_changed(self, value: int) -> None:
+        d = value / 1000.0
+        self._rotation.deadzone = d
+        self._config.rotation_deadzone = d
+        self._rdz_label.setText(f"{d:.2f}")
+        self._schedule_save()
+
+    def _on_rinvert_x_changed(self, checked: bool) -> None:
+        self._rotation.invert_x = checked
+        self._config.rotation_invert_x = checked
+        self._schedule_save()
+
+    def _on_rinvert_y_changed(self, checked: bool) -> None:
+        self._rotation.invert_y = checked
+        self._config.rotation_invert_y = checked
+        self._schedule_save()
+
+    def _calibrate_rotation(self) -> None:
+        n = self._latest_palm_normal
+        if n is None:
+            QMessageBox.warning(
+                self, "No hand detected",
+                "Couldn't read the palm orientation. Place your hand in the "
+                "camera view in its resting / neutral pose, then try again.",
+            )
+            return
+        self._rotation.set_neutral(n)
+        self._config.rotation_neutral_x = float(self._rotation.neutral_x)
+        self._config.rotation_neutral_y = float(self._rotation.neutral_y)
+        self._persist_config()
 
     # -------------------------------------------------------- depth calibration
 
@@ -774,6 +975,7 @@ class MainWindow(QMainWindow):
         self._key_sender.set_enabled(False)
         self._mouse.enabled = False
         self._descent.disable()
+        self._rotation.disable()
         self._stop_camera()
         self._tracker.close()
         self._persist_config()

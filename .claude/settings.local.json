@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where python *)",
+      "Bash(py --version)",
+      "Bash(npm --version)",
+      "WebSearch",
+      "WebFetch(domain:pypi.org)",
+      "Bash(py -3.12 --version)",
+      "Read(//c/Users/pickl/AppData/Local/Programs/Python//**)",
+      "Read(//c//**)",
+      "Read(//c/Program Files/**)",
+      "Bash(\"/c/Users/pickl/AppData/Local/Programs/Python/Python312/python.exe\" -m venv .venv)",
+      "Bash(.venv/Scripts/python.exe -m pip install --upgrade pip)",
+      "Bash(.venv/Scripts/python.exe -m pip install -r requirements.txt)",
+      "Bash(.venv/Scripts/python.exe main.py)",
+      "Bash(.venv/Scripts/python.exe -c \"import mediapipe; print\\('version:', mediapipe.__version__\\); print\\('has solutions:', hasattr\\(mediapipe, 'solutions'\\)\\); import mediapipe.python.solutions.hands as h; print\\('hands ok:', h.Hands\\); from mediapipe.python.solutions import drawing_utils, drawing_styles; print\\('drawing ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -m pip install \"mediapipe==0.10.21\")",
+      "Bash(.venv/Scripts/python.exe -c \"import mediapipe as mp; print\\(mp.__version__\\); print\\(hasattr\\(mp, 'solutions'\\)\\); print\\(mp.solutions.hands.Hands\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.camera import CameraThread; from src.gesture import compute_curl_ratios, DEFAULT_THRESHOLDS; print\\('imports ok'\\); print\\('thumb default:', DEFAULT_THRESHOLDS['thumb']\\); print\\('CameraThread.pop_latest:', CameraThread.pop_latest\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.mouse_controller import MouseController; from src.config import load_config; print\\('imports ok'\\); c=load_config\\(\\); print\\('center:', c.mouse_center\\); print\\('sens:', c.mouse_sensitivity\\); print\\('dead:', c.mouse_deadzone\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import DepthController, compute_palm_size; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.hand_tracker import HandResult; import inspect; print\\('fields:', HandResult.__dataclass_fields__.keys\\(\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.mouse_controller import MouseController; import inspect; print\\(inspect.signature\\(MouseController.update\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import compute_palm_size; import numpy as np; lms = np.random.rand\\(21, 3\\).astype\\(np.float32\\); w = np.random.randn\\(21, 3\\).astype\\(np.float32\\) * 0.05; print\\('scale:', compute_palm_size\\(lms, w\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import compute_palm_size; import numpy as np; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import DescentController; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.mouse_controller import MouseController, palm_center; from src.config import load_config; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import DescentController, compute_palm_size; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import compute_palm_size; import numpy as np; lms = np.random.rand\\(21, 3\\).astype\\(np.float32\\); print\\('size:', compute_palm_size\\(lms\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from src.ui.main_window import MainWindow; from src.depth_controller import DescentController; d=DescentController\\(low_palm_size=1.0, high_palm_size=2.0, maintain_width=0.33\\); print\\('duty @ low=', d.compute_duty\\(1.0\\), '@ mid=', d.compute_duty\\(1.5\\), '@ high=', d.compute_duty\\(2.0\\)\\); print\\('maintain bounds:', d.maintain_bounds\\(\\)\\)\")"
+    ]
+  }
+}
